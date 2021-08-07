@@ -1,0 +1,30 @@
+<body>
+    <h1 id="header">Time to complete request: </h1>
+    <div id="list"></div>
+    <script>
+        const N = 50;
+
+        async function main() {
+            let start = new Date().getTime();
+
+            for (let i = 0; i < N; i++) {
+
+                let url = "https://jsonplaceholder.typicode.com/posts/" + (i + 1).toString();
+
+                let request = await fetch(url);
+                let body = await request.text();
+
+                let p = document.createElement("p");
+                p.innerHTML = body;
+                document.getElementById("list").appendChild(p);
+            }
+
+            let end = new Date().getTime();
+            let time = end - start;
+            document.getElementById("header").innerHTML += time + " ms";
+        }
+
+        main();
+
+    </script>
+</body>

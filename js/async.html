@@ -1,0 +1,36 @@
+<body>
+    <h1 id="header">Time to complete request: </h1>
+    <div id="list"></div>
+    <script>
+        const N = 50;
+
+        function main() {
+            let start = new Date().getTime();
+            let promise_array = [];
+            for (let i = 0; i < N; i++) {
+
+                let url = "https://jsonplaceholder.typicode.com/posts/" + (i + 1).toString();
+
+                let promise = fetch(url)
+                    .then(response => response.text())
+                    .then(body => {
+                        // append json text as a new p element
+                        let p = document.createElement("p");
+                        p.innerHTML = body;
+                        document.getElementById("list").appendChild(p);
+                    });
+                promise_array.push(promise);
+            }
+
+            Promise.all(promise_array)
+                .then((values) => {
+                    let end = new Date().getTime();
+                    let time = end - start;
+                    document.getElementById("header").innerHTML += time + " ms";
+                });
+        }
+
+        main();
+
+    </script>
+</body>
