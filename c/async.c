@@ -7,27 +7,30 @@
 #include <sys/select.h>  //select
 
 int main(int argc, char *argv[]) {
-  if (argc != 2) {
-    puts("Usage: ./sync <n> \n");
+  if (argc != 3) {
+    puts("Usage: ./sync <n-requests> <server port> \n");
     return 0;
   }
 
   int N = atoi(argv[1]);
-  int socks[200];
-  int max_fd = 0;
+  int port = atoi(argv[2]);
+  int socks[N];
   struct sockaddr_in server;
-  char server_reply[2000];
+  char server_reply[BUFSIZ];
 
   // populate address information for server
   server.sin_addr.s_addr = inet_addr("127.0.0.1");
   server.sin_family = AF_INET;
-  server.sin_port = htons(8888);
+  server.sin_port = htons(port);
 
   // Setup the fd_set
+  // fd_set is the set of file descripters that select()
+  // will watch to see if they can be read() from
   fd_set socket_fd_set;
-  int retval;
-  int fds_remaining;
   FD_ZERO(&socket_fd_set);
+  fd_set temp_fd_set;
+  FD_ZERO(&temp_fd_set);
+
 
   char *request_string =
       "GET /foo.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
@@ -37,7 +40,6 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < N; i++) {
     // create socket and establish connection with server
     socks[i] = socket(AF_INET, SOCK_STREAM, 0);
-    max_fd = max_fd > socks[i] ? max_fd : socks[i];
 
     if (socks[i] == -1)
       puts("Could not create socket");
@@ -55,26 +57,44 @@ int main(int argc, char *argv[]) {
       return 1;
     }
     FD_SET(socks[i], &socket_fd_set);
+    FD_SET(socks[i], &temp_fd_set);
   }
 
-  while (retval = select(max_fd + 1, &socket_fd_set, NULL, NULL, NULL)) {
-    puts("Select gave some new events!\n");
+  int loop = 0;
+  while (select(FD_SETSIZE, &socket_fd_set, NULL, NULL, NULL)) {
+    printf("Select gave some new events! Loop: %d\n", loop++);
+
+    fd_set temp_fd_set2;
+    FD_ZERO(&temp_fd_set2);
+
     for (int i = 0; i < N; i++) {
       // Sockets that are ready to be read are removed 
       // from the fd_set
       if (FD_ISSET(socks[i], &socket_fd_set)) {
-        recv(socks[i], server_reply, 2000, 0);
-        puts(server_reply);
+        printf("READING FROM SOCKET: %d\n", socks[i]);
+        recv(socks[i], server_reply, BUFSIZ, 0);
+        // puts(server_reply);
         close(socks[i]);
-      } else {
-        // FD_SET(socks[i], &socket_fd_set);
+      } else if (FD_ISSET(socks[i], &temp_fd_set)){
+        printf("FOUND SOCKET NOT READY FOR READING: %d\n", socks[i]);
+        FD_SET(socks[i], &temp_fd_set2);
       }
     }
-    // Now need to put back the ones that still need to be read from
+
+    // Put back file descriptors that still need
+    // to be waited on
     FD_ZERO(&socket_fd_set);
-
+    FD_ZERO(&temp_fd_set);
+    int nset = 0;
+    for (int i = 0; i < N; i++) 
+      if (FD_ISSET(socks[i], &temp_fd_set2)){
+        FD_SET(socks[i], &socket_fd_set);
+        FD_SET(socks[i], &temp_fd_set);
+        nset++;
+      }
+    if (nset == 0) break;
+        
   }
-
 
   return 0;
 }
